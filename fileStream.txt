@@ -1,0 +1,172 @@
+
+//!-------------------------------------------------------------------------
+//!class LFileStream
+LFileStream::LFileStream()
+{
+	FFile = new CFile;
+}
+LFileStream::LFileStream(const WideString FileName, int nOpenFlags)
+{
+	FFile = NULL;
+	AnsiString log;
+	int count= 0;
+	for(;;)
+	{
+		TRY{
+			FFile = new CFile(FileName.c_str(),nOpenFlags);
+			return;
+		}
+		CATCH(CFileException, pEx)
+		{
+			log = SysErrorMessageA(GetLastError())+FileName;
+		}
+		END_CATCH
+		count++;
+		if(count > 6)
+		{
+			throw std::exception(log.c_str());
+		}
+		Sleep(100);
+	}
+	
+}
+LFileStream::~LFileStream(void)
+{
+	TRY{
+		delete FFile;
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+}
+bool LFileStream::Open(const WideString FileName,int Mode)
+{
+	bool Result = false;
+	TRY{
+		Result = (FFile->Open(FileName.c_str(),Mode) == TRUE)?true:false;
+	}
+	CATCH(CFileException, pEx)
+	{
+		AnsiString log = SysErrorMessageA(GetLastError())+FileName;
+		throw std::exception(log.c_str());
+	}
+	END_CATCH
+	return Result;	
+}
+void LFileStream::Close()
+{
+	TRY{
+		FFile->Close();
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+}
+UINT64 LFileStream::Position()
+{
+	UINT64 Result = 0;
+	TRY{
+		Result = FFile->GetPosition();
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+	return Result;
+}
+void LFileStream::SetPosition(UINT64 Pos)
+{
+	TRY{
+		FFile->Seek(Pos,CFile::begin);
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+}
+UINT64 LFileStream::Size()
+{
+	return FFile->GetLength();
+}
+void LFileStream::SetSize(UINT64 size)
+{
+	TRY{
+		UINT64 position = Position();
+		FFile->SetLength(size);
+		SetPosition(position);
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+}
+//每次读取最大1024*64字节的数据
+UINT32 LFileStream::Read(void *Buffer, UINT32 Count)
+{
+	static const int gc_blockSize = 1024*64;
+	UINT32 Result = 0;
+	__int64 count = Count;
+	TRY{
+		byte *p = (byte*)Buffer;
+		while(p-Buffer < count-gc_blockSize)
+		{
+			Result += FFile->Read(p,gc_blockSize);
+			p += gc_blockSize;
+		}
+		Result +=FFile->Read(p,((byte*)Buffer + count - p));
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+	return Result;
+}
+UINT32 LFileStream::Write(const void *Buffer, UINT32 Count)
+{
+    static const UINT32 gc_blockSize = 1024*64;
+	__int64 count = Count;
+	TRY{
+		byte *p = (byte*)Buffer;
+		while(p-Buffer < count-gc_blockSize)
+		{
+			FFile->Write(p,gc_blockSize);
+			p += gc_blockSize;
+		}
+		FFile->Write(p,((byte*)Buffer + count - p));
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+	return Count;
+}
+UINT64 LFileStream::Seek(UINT64 Offset, LSeekOrigin Origin)
+{
+	UINT64 Result = 0;
+	TRY{
+		if(Origin == soBeginning)
+			Result = FFile->Seek(Offset,CFile::begin);
+		else if(Origin == soCurrent)
+			Result = FFile->Seek(Offset,CFile::current);
+		Result = FFile->Seek(Offset,CFile::end);
+	}
+	CATCH(CFileException, pEx)
+	{
+		throw std::exception(SysErrorMessageA(GetLastError()).c_str());
+	}
+	END_CATCH
+	return Result;
+}
+HANDLE LFileStream::Handle() const
+{
+	return FFile->m_hFile;
+}
