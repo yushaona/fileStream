@@ -129,6 +129,7 @@ UINT32 LFileStream::Read(void *Buffer, UINT32 Count)
 	END_CATCH
 	return Result;
 }
+//每次写入最大1064*64字节的数据
 UINT32 LFileStream::Write(const void *Buffer, UINT32 Count)
 {
     static const UINT32 gc_blockSize = 1024*64;
